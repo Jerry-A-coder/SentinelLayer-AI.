@@ -1,0 +1,6 @@
+{
+  "name": "SentinelLayer AI",
+  "description": "A Multimodal, Agentic Prompt Injection Firewall for Secure AI Agents — Detect. Inspect. Neutralise. Protect.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

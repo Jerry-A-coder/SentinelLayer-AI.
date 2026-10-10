@@ -1,0 +1,182 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == 'jerrygodwin04@gmail.com' && request.auth.token.email_verified == true)
+      );
+    }
+
+    // Validation Blueprint: ScanRecord
+    function isValidScanRecord(data) {
+      return data.keys().hasAll([
+        'scanId', 'ownerId', 'sourceName', 'sourceType', 'contentPreview',
+        'sanitisedContent', 'riskScore', 'outcome', 'primaryCategory',
+        'findingsCount', 'aiMode', 'policyVersion', 'reviewStatus',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'scanId', 'ownerId', 'sourceName', 'sourceType', 'contentPreview',
+        'sanitisedContent', 'riskScore', 'outcome', 'primaryCategory',
+        'findingsCount', 'aiMode', 'policyVersion', 'reviewStatus',
+        'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.scanId) &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      data.sourceName is string && data.sourceName.size() >= 1 && data.sourceName.size() <= 200 &&
+      data.sourceType is string && data.sourceType.size() >= 1 && data.sourceType.size() <= 50 &&
+      data.contentPreview is string && data.contentPreview.size() <= 2000 &&
+      data.sanitisedContent is string && data.sanitisedContent.size() <= 2000 &&
+      data.riskScore is number && data.riskScore >= 0 && data.riskScore <= 100 &&
+      data.outcome is string && data.outcome.size() <= 32 &&
+      data.outcome in ['ALLOW', 'SANITISE', 'QUARANTINE', 'BLOCK', 'REQUIRE_REVIEW'] &&
+      data.primaryCategory is string && data.primaryCategory.size() >= 1 && data.primaryCategory.size() <= 64 &&
+      data.findingsCount is number && data.findingsCount >= 0 && data.findingsCount <= 500 &&
+      data.aiMode is string && data.aiMode.size() >= 1 && data.aiMode.size() <= 32 &&
+      data.policyVersion is string && data.policyVersion.size() >= 1 && data.policyVersion.size() <= 32 &&
+      data.reviewStatus is string && data.reviewStatus.size() <= 32 &&
+      data.reviewStatus in ['PENDING', 'APPROVED', 'REJECTED', 'NONE'] &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: SecurityPolicy
+    function isValidSecurityPolicy(data) {
+      return data.keys().hasAll([
+        'policyId', 'ownerId', 'name', 'version', 'blockThreshold',
+        'quarantineThreshold', 'sanitiseThreshold', 'failClosedOnAiOffline',
+        'enforceStrictToolAllowlist', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'policyId', 'ownerId', 'name', 'version', 'blockThreshold',
+        'quarantineThreshold', 'sanitiseThreshold', 'failClosedOnAiOffline',
+        'enforceStrictToolAllowlist', 'automatedRemediationEnabled',
+        'vendorNotificationTarget', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.policyId) &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+      data.version is string && data.version.size() >= 1 && data.version.size() <= 32 &&
+      data.blockThreshold is number && data.blockThreshold >= 0 && data.blockThreshold <= 100 &&
+      data.quarantineThreshold is number && data.quarantineThreshold >= 0 && data.quarantineThreshold <= 100 &&
+      data.sanitiseThreshold is number && data.sanitiseThreshold >= 0 && data.sanitiseThreshold <= 100 &&
+      data.failClosedOnAiOffline is bool &&
+      data.enforceStrictToolAllowlist is bool &&
+      (!('automatedRemediationEnabled' in data) || data.automatedRemediationEnabled is bool) &&
+      (!('vendorNotificationTarget' in data) || (data.vendorNotificationTarget is string && data.vendorNotificationTarget.size() <= 200)) &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: AuditLogRecord
+    function isValidAuditLogRecord(data) {
+      return data.keys().hasAll([
+        'logId', 'ownerId', 'scanId', 'eventType', 'decision',
+        'policyVersion', 'actorRole', 'summary', 'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'logId', 'ownerId', 'scanId', 'eventType', 'decision',
+        'policyVersion', 'actorRole', 'summary', 'createdAt'
+      ]) &&
+      isValidId(data.logId) &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      isValidId(data.scanId) &&
+      data.eventType is string && data.eventType.size() >= 1 && data.eventType.size() <= 64 &&
+      data.decision is string && data.decision.size() >= 1 && data.decision.size() <= 32 &&
+      data.policyVersion is string && data.policyVersion.size() >= 1 && data.policyVersion.size() <= 32 &&
+      data.actorRole is string && data.actorRole.size() >= 1 && data.actorRole.size() <= 32 &&
+      data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500 &&
+      data.createdAt is timestamp;
+    }
+
+    // Admins Collection
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Scans Collection
+    match /scans/{scanId} {
+      allow get: if isSignedIn() && isValidId(scanId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(scanId) && isValidScanRecord(incoming()) &&
+        incoming().scanId == scanId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(scanId) && isValidScanRecord(incoming()) && (
+        isAdmin() || (
+          existing().ownerId == request.auth.uid &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().scanId == existing().scanId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          existing().reviewStatus in ['PENDING', 'NONE'] &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['reviewStatus', 'outcome', 'updatedAt'])
+        )
+      );
+      allow delete: if isVerifiedUser() && isValidId(scanId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // Security Policies Collection
+    match /policies/{policyId} {
+      allow get: if isSignedIn() && isValidId(policyId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(policyId) && isValidSecurityPolicy(incoming()) &&
+        incoming().policyId == policyId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(policyId) && isValidSecurityPolicy(incoming()) && (
+        isAdmin() || (
+          existing().ownerId == request.auth.uid &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().policyId == existing().policyId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'version', 'blockThreshold', 'quarantineThreshold',
+            'sanitiseThreshold', 'failClosedOnAiOffline', 'enforceStrictToolAllowlist',
+            'automatedRemediationEnabled', 'vendorNotificationTarget', 'updatedAt'
+          ])
+        )
+      );
+      allow delete: if isVerifiedUser() && isValidId(policyId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // Immutable Audit Logs Collection
+    match /audit_logs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(logId) && isValidAuditLogRecord(incoming()) &&
+        incoming().logId == logId &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+  }
+}

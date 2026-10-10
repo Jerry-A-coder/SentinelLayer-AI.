@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "ScanRecord": {
+      "title": "ScanRecord",
+      "description": "A security scan of incoming content or document analyzed by SentinelLayer AI.",
+      "type": "object",
+      "properties": {
+        "scanId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceName": { "type": "string", "maxLength": 200 },
+        "sourceType": { "type": "string", "maxLength": 50 },
+        "contentPreview": { "type": "string", "maxLength": 2000 },
+        "sanitisedContent": { "type": "string", "maxLength": 2000 },
+        "riskScore": { "type": "number" },
+        "outcome": { "type": "string", "enum": ["ALLOW", "SANITISE", "QUARANTINE", "BLOCK", "REQUIRE_REVIEW"], "maxLength": 32 },
+        "primaryCategory": { "type": "string", "maxLength": 64 },
+        "findingsCount": { "type": "number" },
+        "aiMode": { "type": "string", "maxLength": 32 },
+        "policyVersion": { "type": "string", "maxLength": 32 },
+        "reviewStatus": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED", "NONE"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["scanId", "ownerId", "sourceName", "sourceType", "contentPreview", "sanitisedContent", "riskScore", "outcome", "primaryCategory", "findingsCount", "aiMode", "policyVersion", "reviewStatus", "createdAt", "updatedAt"]
+    },
+    "SecurityPolicy": {
+      "title": "SecurityPolicy",
+      "description": "Configurable deterministic security policy profile enforced by the gateway.",
+      "type": "object",
+      "properties": {
+        "policyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 120 },
+        "version": { "type": "string", "maxLength": 32 },
+        "blockThreshold": { "type": "number" },
+        "quarantineThreshold": { "type": "number" },
+        "sanitiseThreshold": { "type": "number" },
+        "failClosedOnAiOffline": { "type": "boolean" },
+        "enforceStrictToolAllowlist": { "type": "boolean" },
+        "automatedRemediationEnabled": { "type": "boolean" },
+        "vendorNotificationTarget": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["policyId", "ownerId", "name", "version", "blockThreshold", "quarantineThreshold", "sanitiseThreshold", "failClosedOnAiOffline", "enforceStrictToolAllowlist", "createdAt", "updatedAt"]
+    },
+    "AuditLogRecord": {
+      "title": "AuditLogRecord",
+      "description": "Immutable security decision and tool gateway enforcement audit trail record.",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "scanId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventType": { "type": "string", "maxLength": 64 },
+        "decision": { "type": "string", "maxLength": 32 },
+        "policyVersion": { "type": "string", "maxLength": 32 },
+        "actorRole": { "type": "string", "maxLength": 32 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["logId", "ownerId", "scanId", "eventType", "decision", "policyVersion", "actorRole", "summary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/scans/{scanId}": {
+      "schema": { "$ref": "#/entities/ScanRecord" },
+      "description": "Stores user security scans and multi-agent firewall decisions."
+    },
+    "/policies/{policyId}": {
+      "schema": { "$ref": "#/entities/SecurityPolicy" },
+      "description": "Stores user-configured security policy profiles."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLogRecord" },
+      "description": "Stores immutable audit trail events for scans, reviews, and tool enforcement."
+    }
+  }
+}
